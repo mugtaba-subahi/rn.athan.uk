@@ -39,14 +39,16 @@ export default function Prayer({ index, isOverlay = false }: Props) {
     if (!isOverlay && index === nextPrayerIndex) {
       textOpacity.value = withTiming(1, { duration: ANIMATION.duration });
     }
+  }, [nextPrayerIndex]);
 
+  useEffect(() => {
     // Control background visibility
     if (overlayVisible && isOverlay && selectedPrayerIndex === nextPrayerIndex && index === nextPrayerIndex) {
       backgroundOpacity.value = 1;
     } else {
       backgroundOpacity.value = withTiming(0, { duration: 500 });
     }
-  }, [overlayVisible, nextPrayerIndex]);
+  }, [overlayVisible]);
 
   const handleLayout = () => {
     if (!viewRef.current || isOverlay) return;
