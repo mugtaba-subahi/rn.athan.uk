@@ -36,13 +36,10 @@ export default function Prayer({ index, isOverlay = false }: Props) {
   useEffect(() => {
     if (!isOverlay && index === nextPrayerIndex) {
       textOpacity.value = withTiming(1, { duration: ANIMATION.durationSlow });
-    } else if (!isPassed) {
-      textOpacity.value = TEXT.opacity;
-    }
+    };
   }, [nextPrayerIndex]);
 
   useEffect(() => {
-    // Only show background when it's the next prayer
     if (isOverlay && selectedPrayerIndex === nextPrayerIndex) {
       backgroundOpacity.value = 1;
     } else {
@@ -70,6 +67,7 @@ export default function Prayer({ index, isOverlay = false }: Props) {
   const handlePress = () => {
     if (isOverlay) {
       setOverlayVisible(false);
+      setSelectedPrayerIndex(-1);
       return;
     }
 
@@ -84,8 +82,8 @@ export default function Prayer({ index, isOverlay = false }: Props) {
     };
 
     if (isPassed || isNext) return {
-      color: COLORS.textPrimary,
-      opacity: textOpacity.value,
+      color: 'white',
+      opacity: 1
     };
 
     return {
@@ -95,25 +93,49 @@ export default function Prayer({ index, isOverlay = false }: Props) {
   });
 
   const containerStyle = useAnimatedStyle(() => {
+    // non-overlay styles
     const baseStyles = {
       borderRadius: PRAYER.borderRadius,
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
       marginHorizontal: !isOverlay ? SCREEN.paddingHorizontal : 0,
-      opacity: isOverlay && selectedPrayerIndex !== index ? 0 : 1,
+      opacity: 1,
     };
 
-    if (overlayVisible && isOverlay && selectedPrayerIndex === nextPrayerIndex && index === nextPrayerIndex) {
-      return {
-        ...baseStyles,
-        backgroundColor: COLORS.primary,
-        shadowColor: COLORS.primaryShadow,
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.5,
-        shadowRadius: 5,
-        opacity: backgroundOpacity.value,
-      };
+    if (overlayVisible) {
+
+      if (isOverlay) {
+        baseStyles.opacity = 0
+
+        if (index === selectedPrayerIndex) {
+          baseStyles.opacity = 1;
+
+          if (index === nextPrayerIndex) {
+            return {
+              ...baseStyles,
+              backgroundColor: 'green',
+              shadowColor: COLORS.primaryShadow,
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.5,
+              shadowRadius: 5,
+              opacity: backgroundOpacity.value,
+            };
+          }
+        }
+      }
     }
+
+    // if (overlayVisible && isOverlay && selectedPrayerIndex === nextPrayerIndex && index === nextPrayerIndex) {
+    //   return {
+    //     ...baseStyles,
+    //     backgroundColor: COLORS.primary,
+    //     shadowColor: COLORS.primaryShadow,
+    //     shadowOffset: { width: 0, height: 10 },
+    //     shadowOpacity: 0.5,
+    //     shadowRadius: 5,
+    //     opacity: backgroundOpacity.value,
+    //   };
+    // }
 
     return baseStyles;
   });
