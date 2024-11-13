@@ -14,6 +14,7 @@ interface Props {
 }
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedView = Animated.createAnimatedComponent(View);
 
 export default function Prayer({ index, isOverlay = false }: Props) {
   const [todaysPrayers] = useAtom(todaysPrayersAtom);
@@ -34,18 +35,18 @@ export default function Prayer({ index, isOverlay = false }: Props) {
   const backgroundOpacity = useSharedValue(0);
 
   useEffect(() => {
+    // Fade in text for next prayer in main view
     if (!isOverlay && index === nextPrayerIndex) {
-      textOpacity.value = withTiming(1, { duration: ANIMATION.durationSlow });
-    };
-  }, [nextPrayerIndex]);
+      textOpacity.value = withTiming(1, { duration: ANIMATION.duration });
+    }
 
-  useEffect(() => {
-    if (isOverlay && selectedPrayerIndex === nextPrayerIndex) {
+    // Control background visibility
+    if (overlayVisible && isOverlay && selectedPrayerIndex === nextPrayerIndex && index === nextPrayerIndex) {
       backgroundOpacity.value = 1;
     } else {
-      backgroundOpacity.value = 0;
+      backgroundOpacity.value = withTiming(0, { duration: 500 });
     }
-  }, [overlayVisible]);
+  }, [overlayVisible, nextPrayerIndex]);
 
   const handleLayout = () => {
     if (!viewRef.current || isOverlay) return;
@@ -67,7 +68,6 @@ export default function Prayer({ index, isOverlay = false }: Props) {
   const handlePress = () => {
     if (isOverlay) {
       setOverlayVisible(false);
-      setSelectedPrayerIndex(-1);
       return;
     }
 
@@ -78,12 +78,12 @@ export default function Prayer({ index, isOverlay = false }: Props) {
   const animatedTextStyle = useAnimatedStyle(() => {
     if (isOverlay) return {
       color: 'white',
-      opacity: 1,
+      opacity: selectedPrayerIndex === index ? 1 : 0,
     };
 
     if (isPassed || isNext) return {
       color: 'white',
-      opacity: 1
+      opacity: textOpacity.value
     };
 
     return {
@@ -92,70 +92,33 @@ export default function Prayer({ index, isOverlay = false }: Props) {
     };
   });
 
-  const containerStyle = useAnimatedStyle(() => {
-    // non-overlay styles
-    const baseStyles = {
-      borderRadius: PRAYER.borderRadius,
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      marginHorizontal: !isOverlay ? SCREEN.paddingHorizontal : 0,
-      opacity: 1,
-    };
-
-    if (overlayVisible) {
-
-      if (isOverlay) {
-        baseStyles.opacity = 0
-
-        if (index === selectedPrayerIndex) {
-          baseStyles.opacity = 1;
-
-          if (index === nextPrayerIndex) {
-            return {
-              ...baseStyles,
-              backgroundColor: 'green',
-              shadowColor: COLORS.primaryShadow,
-              shadowOffset: { width: 0, height: 10 },
-              shadowOpacity: 0.5,
-              shadowRadius: 5,
-              opacity: backgroundOpacity.value,
-            };
-          }
-        }
-      }
-    }
-
-    // if (overlayVisible && isOverlay && selectedPrayerIndex === nextPrayerIndex && index === nextPrayerIndex) {
-    //   return {
-    //     ...baseStyles,
-    //     backgroundColor: COLORS.primary,
-    //     shadowColor: COLORS.primaryShadow,
-    //     shadowOffset: { width: 0, height: 10 },
-    //     shadowOpacity: 0.5,
-    //     shadowRadius: 5,
-    //     opacity: backgroundOpacity.value,
-    //   };
-    // }
-
-    return baseStyles;
-  });
+  const animatedBackgroundStyle = useAnimatedStyle(() => ({
+    opacity: backgroundOpacity.value,
+  }));
 
   return (
-    <AnimatedPressable
+    <Pressable
       ref={viewRef}
       onLayout={handleLayout}
-      style={containerStyle}
+      style={[styles.container, { marginHorizontal: isOverlay ? 0 : SCREEN.paddingHorizontal }]}
       onPress={handlePress}
     >
-      <Animated.Text style={[styles.text, styles.english, animatedTextStyle]}> {prayer.english} </Animated.Text>
-      <Animated.Text style={[styles.text, styles.arabic, animatedTextStyle]}> {prayer.arabic} </Animated.Text>
+      <AnimatedView style={[styles.background, animatedBackgroundStyle]} />
+      <Animated.Text style={[styles.text, styles.english, animatedTextStyle]}>{prayer.english}</Animated.Text>
+      <Animated.Text style={[styles.text, styles.arabic, animatedTextStyle]}>{prayer.arabic}</Animated.Text>
       <PrayerTime index={index} isOverlay={isOverlay} />
       <Alert index={index} isOverlay={isOverlay} />
-    </AnimatedPressable>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: PRAYER.borderRadius,
+  },
   text: {
     fontFamily: TEXT.famiy.regular,
     fontSize: TEXT.size,
@@ -168,4 +131,15 @@ const styles = StyleSheet.create({
     flex: 0.75,
     textAlign: 'right',
   },
+  background: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: PRAYER.borderRadius,
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primaryShadow,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5,
+  }
 });
