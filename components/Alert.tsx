@@ -9,7 +9,7 @@ import Animated, {
   withSpring,
   interpolate,
   withTiming,
-  interpolateColor
+  interpolateColor,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
@@ -18,42 +18,29 @@ import { AlertType } from '@/shared/types';
 import { useAtomValue } from 'jotai';
 import { scheduleAtom, alertPreferencesAtom } from '@/stores/store';
 import { setAlertPreference } from '@/stores/actions';
+import React = require('react');
 
 const SPRING_CONFIG = { damping: 12, stiffness: 500, mass: 0.5 };
 const TIMING_CONFIG = { duration: 5 };
 
-const WrappedBellSlash = forwardRef((props, ref) => <PiBellSimpleSlash {...props} ref={ref} />);
-const WrappedBellRinging = forwardRef((props, ref) => <PiBellSimpleRinging {...props} ref={ref} />);
-const WrappedVibrate = forwardRef((props, ref) => <PiVibrate {...props} ref={ref} />);
-const WrappedSpeaker = forwardRef((props, ref) => <PiSpeakerSimpleHigh {...props} ref={ref} />);
-
-const AnimatedBellSlash = Animated.createAnimatedComponent(WrappedBellSlash);
-const AnimatedBellRinging = Animated.createAnimatedComponent(WrappedBellRinging);
-const AnimatedVibrate = Animated.createAnimatedComponent(WrappedVibrate);
-const AnimatedSpeaker = Animated.createAnimatedComponent(WrappedSpeaker);
 
 const ALERT_CONFIGS = [
   {
     icon: PiBellSimpleSlash,
-    animatedIcon: AnimatedBellSlash,
     label: "Off",
     type: AlertType.Off
   },
   {
     icon: PiBellSimpleRinging,
-    animatedIcon: AnimatedBellRinging,
     label: "Notification",
     type: AlertType.Notification
   },
   {
     icon: PiVibrate,
-    animatedIcon: AnimatedVibrate,
     label: "Vibrate",
-    type: AlertType.Vibrate
   },
   {
     icon: PiSpeakerSimpleHigh,
-    animatedIcon: AnimatedSpeaker,
     label: "Sound",
     type: AlertType.Sound
   }
@@ -74,19 +61,14 @@ export default function Alert({ index }: Props) {
   const defaultColorProgress = isPopupActive || isPassed || isNext ? 1 : 0;
   const colorProgress = useSharedValue(defaultColorProgress);
 
-  console.log('click: ', defaultColorProgress);
-
   useEffect(() => {
-    console.log('isPopupActive triggered');
     if (isPopupActive === true) {
-      console.log('ON');
-      colorProgress.value = 1;
+      colorProgress.value = withTiming(1, { duration: ANIMATION.duration });
       return;
     };
 
     if (isPopupActive === false) {
-      console.log('OFF');
-      colorProgress.value = defaultColorProgress;
+      colorProgress.value = withTiming(0, { duration: ANIMATION.duration });
     }
   }, [isPopupActive]);
 
@@ -104,8 +86,8 @@ export default function Alert({ index }: Props) {
     }, 1500);
   };
 
-  const alertAnimatedStyle = useAnimatedStyle(() => ({
-  }));
+  const econ = forwardRef(ALERT_CONFIGS[iconIndex].icon);
+  const AnimatedIcon = Animated.createAnimatedComponent(econ);
 
   const iconAnimatedProps = useAnimatedProps(() => ({
     color: interpolateColor(
@@ -115,17 +97,10 @@ export default function Alert({ index }: Props) {
     )
   }));
 
-  const AnimatedIcon = ALERT_CONFIGS[iconIndex].animatedIcon;
-
   return (
     <View style={styles.container}>
-      <Pressable
-        onPress={handlePress}
-        style={styles.iconContainer}
-      >
-        <Animated.View style={alertAnimatedStyle}>
-          <AnimatedIcon animatedProps={iconAnimatedProps} size={20} />
-        </Animated.View>
+      <Pressable onPress={handlePress} style={styles.iconContainer}>
+        <AnimatedIcon animatedProps={iconAnimatedProps} size={20} />
       </Pressable>
     </View>
   );
@@ -140,25 +115,5 @@ const styles = StyleSheet.create({
     paddingRight: PRAYER.padding.right,
     paddingLeft: 13,
     justifyContent: 'center',
-  },
-  popup: {
-    position: 'absolute',
-    alignSelf: 'center',
-    right: '100%',
-    borderRadius: 50,
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 10,
-    backgroundColor: 'black',
-    ...PRAYER.shadow,
-  },
-  popupIcon: {
-    marginRight: 15
-  },
-  label: {
-    fontSize: TEXT.size,
-    color: COLORS.activePrayer,
-  },
+  }
 });
