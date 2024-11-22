@@ -1,28 +1,18 @@
-import { useState, useCallback, useRef, useEffect, forwardRef } from 'react';
-import { StyleSheet, Pressable, Text, View, GestureResponderEvent } from 'react-native';
+import { useState, useRef, useEffect, forwardRef } from 'react';
+import { StyleSheet, Pressable, View } from 'react-native';
 import { PiVibrate, PiBellSimpleSlash, PiBellSimpleRinging, PiSpeakerSimpleHigh } from "rn-icons/pi";
-import { useAtom } from 'jotai';
 import Animated, {
   useSharedValue,
-  useAnimatedStyle,
   useAnimatedProps,
-  withSpring,
-  interpolate,
   withTiming,
   interpolateColor,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
-import { COLORS, TEXT, ANIMATION, PRAYER, PRAYER_INDEX_LAST_THIRD } from '@/shared/constants';
+import { COLORS, ANIMATION, PRAYER } from '@/shared/constants';
 import { AlertType } from '@/shared/types';
 import { useAtomValue } from 'jotai';
-import { scheduleAtom, alertPreferencesAtom } from '@/stores/store';
-import { setAlertPreference } from '@/stores/actions';
-import React = require('react');
-
-const SPRING_CONFIG = { damping: 12, stiffness: 500, mass: 0.5 };
-const TIMING_CONFIG = { duration: 5 };
-
+import { scheduleAtom } from '@/stores/store';
 
 const ALERT_CONFIGS = [
   {
