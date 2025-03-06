@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform, Alert, Linking } from 'react-native';
 
+import * as Device from '@/device/notifications';
 import logger from '@/shared/logger';
 import { AlertType, ScheduleType } from '@/shared/types';
 import * as NotificationStore from '@/stores/notifications';
@@ -41,7 +42,14 @@ export const useNotification = () => {
 
       // First try requesting permissions
       const { status } = await Notifications.requestPermissionsAsync();
-      if (status === 'granted') return isNotifictionGranted(status);
+      if (status === 'granted') {
+        // Make sure we have a channel set up when permissions are first granted
+        if (Platform.OS === 'android') {
+          const soundIndex = NotificationStore.getSoundPreference();
+          await Device.updateAndroidChannel(soundIndex);
+        }
+        return isNotifictionGranted(status);
+      }
 
       // If denied, show settings dialog
       return new Promise((resolve) => {

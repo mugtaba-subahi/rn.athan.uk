@@ -12,6 +12,7 @@ import * as Device from '@/device/notifications';
 import { COLORS, TEXT } from '@/shared/constants';
 import { rescheduleAllNotifications, setSoundPreference } from '@/stores/notifications';
 import { setBottomSheetModal, setPlayingSoundIndex } from '@/stores/ui';
+import logger from '@/shared/logger';
 
 export default function BottomSheetSound() {
   const { bottom } = useSafeAreaInsets();
@@ -74,7 +75,12 @@ export default function BottomSheetSound() {
 
     // Update the persisted sound preference with user's selection
     setSoundPreference(tempSoundSelection);
-    await Device.updateAndroidChannel(tempSoundSelection);
+
+    // First update the Android channel, wait for it to complete
+    const channelId = await Device.updateAndroidChannel(tempSoundSelection);
+    logger.info('Updated notification channel to:', channelId);
+
+    // Then reschedule all notifications with the new channel
     await rescheduleAllNotifications();
 
     // Clear temporary selection state since changes are now persisted

@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import logger from '@/shared/logger';
 import * as TimeUtils from '@/shared/time';
 import { AlertType } from '@/shared/types';
+import * as Database from '@/stores/database';
 import { refreshNotifications } from '@/stores/notifications';
 
 export interface ScheduledNotification {
@@ -92,13 +93,25 @@ export const genNextXDays = (numberOfDays: number): string[] => {
 export const createDefaultAndroidChannel = async () => {
   if (Platform.OS !== 'android') return;
 
-  await Notifications.setNotificationChannelAsync('athan_1', {
-    name: 'Athan 1',
+  const timestamp = format(new Date(), 'yyyy-MM-dd-HH-mm-ss');
+  const channelId = `athan_1_${timestamp}`;
+
+  await Notifications.setNotificationChannelAsync(channelId, {
+    name: channelId,
     sound: 'athan1.wav',
     importance: Notifications.AndroidImportance.MAX,
     enableVibrate: true,
     vibrationPattern: [0, 250, 250, 250],
+    enableLights: true,
+    showBadge: true,
+    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    lightColor: '#2c1c77',
+    bypassDnd: true,
   });
+
+  // Store the default channel ID using the database function
+  Database.setCurrentNotificationChannelId(channelId);
+  logger.info('NOTIFICATION: Created default channel:', channelId);
 };
 
 /**

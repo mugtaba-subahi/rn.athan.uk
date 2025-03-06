@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -10,17 +11,43 @@ import * as NotificationStore from '@/stores/notifications';
 export const updateAndroidChannel = async (sound: number) => {
   if (Platform.OS !== 'android') return;
 
-  const channelId = `athan_${sound + 1}`;
+  // Create a unique channel ID with timestamp
+  const timestamp = format(new Date(), 'yyyy-MM-dd-HH-mm-ss');
+  const channelId = `athan_${sound + 1}_${timestamp}`;
 
-  await Notifications.setNotificationChannelAsync(channelId, {
-    name: `Athan ${sound + 1}`,
-    sound: `athan${sound + 1}.wav`,
-    importance: Notifications.AndroidImportance.MAX,
-    enableVibrate: true,
-    vibrationPattern: [0, 250, 250, 250],
-  });
+  // Get the previous channel ID if exists
+  const previousChannelId = Database.getCurrentNotificationChannelId();
 
-  return channelId;
+  try {
+    // Delete previous channel if it exists
+    if (previousChannelId) {
+      await Notifications.deleteNotificationChannelAsync(previousChannelId);
+      logger.info('NOTIFICATION SYSTEM: Deleted previous channel:', previousChannelId);
+    }
+
+    // Create new channel with enhanced properties
+    await Notifications.setNotificationChannelAsync(channelId, {
+      name: channelId,
+      sound: `athan${sound + 1}.wav`,
+      importance: Notifications.AndroidImportance.MAX,
+      enableVibrate: true,
+      vibrationPattern: [0, 250, 250, 250],
+      enableLights: true,
+      showBadge: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      lightColor: '#2c1c77',
+      bypassDnd: true,
+    });
+
+    // Store current channel ID through database service
+    Database.setCurrentNotificationChannelId(channelId);
+    logger.info('NOTIFICATION SYSTEM: Created new channel:', channelId);
+
+    return channelId;
+  } catch (error) {
+    logger.error('NOTIFICATION SYSTEM: Failed to update channel:', error);
+    return previousChannelId || `athan_${sound + 1}`;
+  }
 };
 
 export const addOneScheduledNotificationForPrayer = async (
@@ -34,14 +61,19 @@ export const addOneScheduledNotificationForPrayer = async (
   const triggerDate = NotificationUtils.genTriggerDate(date, time);
   const content = NotificationUtils.genNotificationContent(englishName, arabicName, alertType, sound);
 
+  // Get channelId from database for Sound notifications on Android
+  const channelId =
+    Platform.OS === 'android' && alertType === AlertType.Sound
+      ? Database.getCurrentNotificationChannelId() || `athan_${sound + 1}`
+      : undefined;
+
   try {
     const id = await Notifications.scheduleNotificationAsync({
       content,
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: triggerDate,
-        // Only include channelId for Android when alert type is Sound
-        channelId: alertType === AlertType.Sound ? `athan_${sound + 1}` : undefined,
+        channelId: channelId,
       },
     });
 
