@@ -133,23 +133,6 @@ export const getAllScheduledNotificationsForPrayer = (scheduleType: ScheduleType
 };
 
 /**
- * Gets the current notification channel ID
- */
-export const getCurrentNotificationChannelId = (): string | undefined => {
-  const channelId = database.getString('current_notification_channel_id');
-  logger.info('NOTIFICATION DB: Getting current channel ID:', channelId);
-  return channelId;
-};
-
-/**
- * Sets the current notification channel ID
- */
-export const setCurrentNotificationChannelId = (channelId: string): void => {
-  logger.info('NOTIFICATION DB: Setting current channel ID:', channelId);
-  database.set('current_notification_channel_id', channelId);
-};
-
-/**
  * Clears prayer-related data from storage
  * Preserves user preferences
  */

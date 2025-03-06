@@ -10,9 +10,9 @@ import BottomSheetSoundItem from '@/components/BottomSheetSoundItem';
 import Glow from '@/components/Glow';
 import * as Device from '@/device/notifications';
 import { COLORS, TEXT } from '@/shared/constants';
+import logger from '@/shared/logger';
 import { rescheduleAllNotifications, setSoundPreference } from '@/stores/notifications';
 import { setBottomSheetModal, setPlayingSoundIndex } from '@/stores/ui';
-import logger from '@/shared/logger';
 
 export default function BottomSheetSound() {
   const { bottom } = useSafeAreaInsets();

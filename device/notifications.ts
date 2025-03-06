@@ -8,22 +8,41 @@ import { AlertType, ScheduleType } from '@/shared/types';
 import * as Database from '@/stores/database';
 import * as NotificationStore from '@/stores/notifications';
 
+/**
+ * Deletes all Android notification channels
+ * @returns The number of channels deleted
+ */
+export const deleteAllAndroidChannels = async (): Promise<number> => {
+  if (Platform.OS !== 'android') return 0;
+
+  try {
+    // Get all existing notification channels
+    const channels = await Notifications.getNotificationChannelsAsync();
+    logger.info(`NOTIFICATION SYSTEM: Found ${channels.length} existing channels`);
+
+    // Delete all existing channels
+    if (channels.length > 0) {
+      const deletePromises = channels.map((channel) => Notifications.deleteNotificationChannelAsync(channel.id));
+      await Promise.all(deletePromises);
+      logger.info(`NOTIFICATION SYSTEM: Deleted ${channels.length} notification channels`);
+    }
+
+    return channels.length;
+  } catch (error) {
+    logger.error('NOTIFICATION SYSTEM: Failed to delete notification channels:', error);
+    return 0;
+  }
+};
+
 export const updateAndroidChannel = async (sound: number) => {
   if (Platform.OS !== 'android') return;
 
-  // Create a unique channel ID with timestamp
-  const timestamp = format(new Date(), 'yyyy-MM-dd-HH-mm-ss');
-  const channelId = `athan_${sound + 1}_${timestamp}`;
-
-  // Get the previous channel ID if exists
-  const previousChannelId = Database.getCurrentNotificationChannelId();
-
   try {
-    // Delete previous channel if it exists
-    if (previousChannelId) {
-      await Notifications.deleteNotificationChannelAsync(previousChannelId);
-      logger.info('NOTIFICATION SYSTEM: Deleted previous channel:', previousChannelId);
-    }
+    await deleteAllAndroidChannels();
+
+    // Create a unique channel ID with timestamp
+    const timestamp = format(new Date(), 'yyyy-MM-dd-HH-mm-ss');
+    const channelId = `athan_${sound + 1}_${timestamp}`;
 
     // Create new channel with enhanced properties
     await Notifications.setNotificationChannelAsync(channelId, {
@@ -39,14 +58,13 @@ export const updateAndroidChannel = async (sound: number) => {
       bypassDnd: true,
     });
 
-    // Store current channel ID through database service
-    Database.setCurrentNotificationChannelId(channelId);
     logger.info('NOTIFICATION SYSTEM: Created new channel:', channelId);
 
     return channelId;
   } catch (error) {
     logger.error('NOTIFICATION SYSTEM: Failed to update channel:', error);
-    return previousChannelId || `athan_${sound + 1}`;
+    // Just return a default channel ID
+    return `athan_${sound + 1}`;
   }
 };
 
@@ -61,11 +79,8 @@ export const addOneScheduledNotificationForPrayer = async (
   const triggerDate = NotificationUtils.genTriggerDate(date, time);
   const content = NotificationUtils.genNotificationContent(englishName, arabicName, alertType, sound);
 
-  // Get channelId from database for Sound notifications on Android
-  const channelId =
-    Platform.OS === 'android' && alertType === AlertType.Sound
-      ? Database.getCurrentNotificationChannelId() || `athan_${sound + 1}`
-      : undefined;
+  // Simplified - we just use the latest athan sound number since we deleted all previous channels
+  const channelId = Platform.OS === 'android' && alertType === AlertType.Sound ? `athan_${sound + 1}` : undefined;
 
   try {
     const id = await Notifications.scheduleNotificationAsync({
