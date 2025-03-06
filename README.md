@@ -253,6 +253,7 @@ The project uses ESLint and Prettier for code consistency and quality:
 - `preference_mute_standard`: Standard prayers notifications mute state
 - `preference_mute_extra`: Extra prayers notifications mute state
 - `preference_sound`: Selected Athan sound index
+- `current_notification_channel_id`: Current Android notification channel ID
 
 ### Prayer Alert Preferences
 

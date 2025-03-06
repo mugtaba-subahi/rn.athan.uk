@@ -58,6 +58,9 @@ export const updateAndroidChannel = async (sound: number) => {
       bypassDnd: true,
     });
 
+    // Store the channel ID for later use
+    Database.setCurrentChannelId(channelId);
+
     logger.info('NOTIFICATION SYSTEM: Created new channel:', channelId);
 
     return channelId;
@@ -79,8 +82,11 @@ export const addOneScheduledNotificationForPrayer = async (
   const triggerDate = NotificationUtils.genTriggerDate(date, time);
   const content = NotificationUtils.genNotificationContent(englishName, arabicName, alertType, sound);
 
-  // Simplified - we just use the latest athan sound number since we deleted all previous channels
-  const channelId = Platform.OS === 'android' && alertType === AlertType.Sound ? `athan_${sound + 1}` : undefined;
+  // Use the stored channel ID, falling back to a default if not available
+  const channelId =
+    Platform.OS === 'android' && alertType === AlertType.Sound
+      ? Database.getCurrentChannelId() || `athan_${sound + 1}`
+      : undefined;
 
   try {
     const id = await Notifications.scheduleNotificationAsync({

@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import logger from '@/shared/logger';
 import * as TimeUtils from '@/shared/time';
 import { AlertType } from '@/shared/types';
+import * as Database from '@/stores/database';
 import { refreshNotifications } from '@/stores/notifications';
 
 export interface ScheduledNotification {
@@ -116,6 +117,9 @@ export const createDefaultAndroidChannel = async () => {
       lightColor: '#2c1c77',
       bypassDnd: true,
     });
+
+    // Store the default channel ID
+    Database.setCurrentChannelId(channelId);
 
     logger.info('NOTIFICATION: Created default channel:', channelId);
   } catch (error) {
