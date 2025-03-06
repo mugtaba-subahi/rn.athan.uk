@@ -231,21 +231,32 @@ export const shouldRescheduleNotifications = (): boolean => {
 };
 
 /**
- * Reschedules all notifications for both Standard and Extra schedules
- * Used when changing sound preferences or during periodic refresh
+ * Cancel all notifications for both Standard and Extra schedules
  */
-export const rescheduleAllNotifications = async () => {
-  // First cancel all notifications for both schedules
+export const cancelAllNotifications = async () => {
   await Promise.all([
     cancelAllScheduleNotificationsForSchedule(ScheduleType.Standard),
     cancelAllScheduleNotificationsForSchedule(ScheduleType.Extra),
   ]);
+};
 
-  // Then schedule new notifications for both schedules
+/**
+ * Add all notifications for both Standard and Extra schedules
+ */
+export const addAllNotifications = async () => {
   await Promise.all([
     addAllScheduleNotificationsForSchedule(ScheduleType.Standard),
     addAllScheduleNotificationsForSchedule(ScheduleType.Extra),
   ]);
+};
+
+/**
+ * Reschedules all notifications for both Standard and Extra schedules
+ * Used when changing sound preferences or during periodic refresh
+ */
+export const rescheduleAllNotifications = async () => {
+  await cancelAllNotifications();
+  await addAllNotifications();
 };
 
 export const refreshNotifications = async () => {

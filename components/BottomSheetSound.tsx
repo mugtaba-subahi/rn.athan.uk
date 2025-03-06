@@ -10,8 +10,7 @@ import BottomSheetSoundItem from '@/components/BottomSheetSoundItem';
 import Glow from '@/components/Glow';
 import * as Device from '@/device/notifications';
 import { COLORS, TEXT } from '@/shared/constants';
-import logger from '@/shared/logger';
-import { rescheduleAllNotifications, setSoundPreference } from '@/stores/notifications';
+import * as Notifications from '@/stores/notifications';
 import { setBottomSheetModal, setPlayingSoundIndex } from '@/stores/ui';
 
 export default function BottomSheetSound() {
@@ -74,14 +73,11 @@ export default function BottomSheetSound() {
     if (tempSoundSelection === null) return;
 
     // Update the persisted sound preference with user's selection
-    setSoundPreference(tempSoundSelection);
+    Notifications.setSoundPreference(tempSoundSelection);
 
-    // First update the Android channel, wait for it to complete
-    const channelId = await Device.updateAndroidChannel(tempSoundSelection);
-    logger.info('Updated notification channel to:', channelId);
-
-    // Then reschedule all notifications with the new channel
-    await rescheduleAllNotifications();
+    await Notifications.cancelAllNotifications();
+    await Device.updateAndroidChannel(tempSoundSelection);
+    await Notifications.addAllNotifications();
 
     // Clear temporary selection state since changes are now persisted
     setTempSoundSelection(null);
