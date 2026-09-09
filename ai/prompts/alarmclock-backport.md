@@ -174,8 +174,8 @@ truth.
 | B4b What's New re-stamped to 1.24.0 (same three items, parked widgets item untouched) | DONE 2026-09-09 |
 | B5 eas.json preview profile wired to the `preview` EAS environment (real key, non-local env; branch-only) | DONE 2026-09-09 (`EXPO_PUBLIC_ENV=preview` already set server-side, no profile pin needed) |
 | B6 validate green, committed, pushed | DONE 2026-09-09 (968 tests green; 1.24.0) |
-| B7 EAS APK + parity IPA built at 1.24.0; owner installs BOTH personally via the EAS link (APK on 3T/5T/8T/Find X8, IPA on the XS; devices already clean); dumpsys `window=0` confirmed on the connected 3T | 1.24.0 built FINISHED but carried the UNPATCHED AAR (prebuilt-AAR miss, see session record; alarms registered windowed +1h, owner-observed missed/mistimed reminders). 1.24.1 rebuild with `buildFromSource` submitted; artifact dex-marker verification BEFORE owner installs |
-| B8 Daily-use verdict (delivery punctuality on OEM phones) | pending owner use |
+| B7 EAS APK + parity IPA built; owner installs BOTH personally via the EAS link; dumpsys `window=0` confirmed on the connected 3T | 1.24.0 built FINISHED but carried the UNPATCHED AAR (prebuilt-AAR miss, see session record). 1.24.1 rebuilt with `buildFromSource`, artifact dex-markers verified BEFORE install, then agent-installed via adb (owner-sanctioned). **PROVEN 2026-09-09 on the FULL FLEET: `window=0` alarm-clock class on 3T, 8T, Find X8, 5T, S23 (every alarm exact to the second; was `window=+1h` on 1.24.0); XS parity at 1.24.1 with owner-configured alerts**. iOS 1.24.1 parity build FINISHED |
+| B8 Daily-use verdict (delivery punctuality on OEM phones) | owner daily-use testing underway since 2026-09-09 evening (first fleet-wide delivery: Asr 16:32, then Fajr 04:47/04:52) |
 | B9 Real release carries #49687; branch + patch deleted; usage diff ported | waiting on SDK 58 (as of 2026-09-09 the 57.x line tops out at 57.0.17 with no alarmClock entry) |
 | B10 ISSUES #22 addendum | SKIPPED per owner 2026-09-09 (fixed 1.22.19; rides daily use if ever revisited) |
 
