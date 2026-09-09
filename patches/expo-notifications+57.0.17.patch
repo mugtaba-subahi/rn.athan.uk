@@ -1,0 +1,806 @@
+diff --git a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/scheduling/NotificationScheduler.kt b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/scheduling/NotificationScheduler.kt
+index 8abc97a..87a9176 100644
+--- a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/scheduling/NotificationScheduler.kt
++++ b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/scheduling/NotificationScheduler.kt
+@@ -18,6 +18,7 @@ import expo.modules.notifications.notifications.interfaces.NotificationTrigger
+ import expo.modules.notifications.notifications.interfaces.SchedulableNotificationTrigger
+ import expo.modules.notifications.notifications.model.NotificationContent
+ import expo.modules.notifications.notifications.model.NotificationRequest
++import expo.modules.notifications.notifications.triggers.AlarmClockAwareTrigger
+ import expo.modules.notifications.notifications.triggers.ChannelAwareTrigger
+ import expo.modules.notifications.notifications.triggers.DailyTrigger
+ import expo.modules.notifications.notifications.triggers.DateTrigger
+@@ -146,6 +147,18 @@ open class NotificationScheduler : Module() {
+     )
+   }
+ 
++  private fun usesAlarmClock(params: ReadableArguments): Boolean {
++    val bestEffort = AlarmClockAwareTrigger.DELIVERY_BEST_EFFORT
++    val alarmClock = AlarmClockAwareTrigger.DELIVERY_ALARM_CLOCK
++    return when (val delivery = params.getString("delivery", bestEffort)) {
++      bestEffort -> false
++      alarmClock -> true
++      else -> throw InvalidArgumentException(
++        "Unsupported trigger delivery \"$delivery\". Use \"$bestEffort\" or \"$alarmClock\"."
++      )
++    }
++  }
++
+   @Throws(InvalidArgumentException::class)
+   protected fun triggerFromParams(params: ReadableArguments?): NotificationTrigger? {
+     if (params == null) {
+@@ -164,7 +177,7 @@ open class NotificationScheduler : Module() {
+         val timestamp = params["timestamp"] as? Number
+           ?: throw InvalidArgumentException("Invalid value provided as date of trigger.")
+ 
+-        DateTrigger(channelId, timestamp.toLong())
++        DateTrigger(channelId, timestamp.toLong(), usesAlarmClock(params))
+       }
+ 
+       "daily" -> {
+@@ -178,7 +191,8 @@ open class NotificationScheduler : Module() {
+         DailyTrigger(
+           channelId,
+           hour.toInt(),
+-          minute.toInt()
++          minute.toInt(),
++          usesAlarmClock(params)
+         )
+       }
+ 
+@@ -194,7 +208,8 @@ open class NotificationScheduler : Module() {
+           channelId,
+           weekday.toInt(),
+           hour.toInt(),
+-          minute.toInt()
++          minute.toInt(),
++          usesAlarmClock(params)
+         )
+       }
+ 
+@@ -211,7 +226,8 @@ open class NotificationScheduler : Module() {
+           channelId,
+           day.toInt(),
+           hour.toInt(),
+-          minute.toInt()
++          minute.toInt(),
++          usesAlarmClock(params)
+         )
+       }
+ 
+@@ -230,7 +246,8 @@ open class NotificationScheduler : Module() {
+           day.toInt(),
+           month.toInt(),
+           hour.toInt(),
+-          minute.toInt()
++          minute.toInt(),
++          usesAlarmClock(params)
+         )
+       }
+ 
+diff --git a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/triggers/NotificationTriggers.kt b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/triggers/NotificationTriggers.kt
+index 956ccc6..661c1e5 100644
+--- a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/triggers/NotificationTriggers.kt
++++ b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/triggers/NotificationTriggers.kt
+@@ -24,15 +24,39 @@ open class ChannelAwareTrigger(open val channelId: String?) :
+   }
+ }
+ 
++/**
++ * A schedulable trigger that can opt into `AlarmManager.setAlarmClock()` delivery.
++ * JS exposes the choice as `delivery: 'bestEffort' | 'alarmClock'`.
++ */
++interface AlarmClockAwareTrigger {
++  val alarmClock: Boolean
++
++  val delivery: String
++    get() = if (alarmClock) DELIVERY_ALARM_CLOCK else DELIVERY_BEST_EFFORT
++
++  companion object {
++    const val DELIVERY_BEST_EFFORT = "bestEffort"
++    const val DELIVERY_ALARM_CLOCK = "alarmClock"
++  }
++}
++
+ /**
+  * A schedulable trigger representing a notification to be scheduled once per day.
+  */
+ @Parcelize
+-class DailyTrigger(override val channelId: String?, val hour: Int, val minute: Int) : ChannelAwareTrigger(channelId), SchedulableNotificationTrigger {
++class DailyTrigger(override val channelId: String?, val hour: Int, val minute: Int, override val alarmClock: Boolean = false) : ChannelAwareTrigger(channelId), SchedulableNotificationTrigger, AlarmClockAwareTrigger {
++
++  companion object {
++    // Pinned to the value computed for the pre-alarmClock class shape so records serialized
++    // by older versions of the library keep loading (they deserialize with alarmClock = false).
++    private const val serialVersionUID: Long = -6558627774241745821L
++  }
++
+   override fun toBundle() = bundleWithChannelId(
+     "type" to "daily",
+     "hour" to hour,
+-    "minute" to minute
++    "minute" to minute,
++    "delivery" to delivery
+   )
+ 
+   override fun nextTriggerDate(): Date? {
+@@ -53,12 +77,23 @@ class DailyTrigger(override val channelId: String?, val hour: Int, val minute: I
+  * A schedulable trigger representing notification to be scheduled only once at a given moment of time.
+  */
+ @Parcelize
+-class DateTrigger(override val channelId: String?, val timestamp: Long) : ChannelAwareTrigger(channelId), SchedulableNotificationTrigger {
++class DateTrigger(
++  override val channelId: String?,
++  val timestamp: Long,
++  override val alarmClock: Boolean = false
++) : ChannelAwareTrigger(channelId), SchedulableNotificationTrigger, AlarmClockAwareTrigger {
++
++  companion object {
++    // Pinned to the value computed for the pre-alarmClock class shape so records serialized
++    // by older versions of the library keep loading (they deserialize with alarmClock = false).
++    private const val serialVersionUID: Long = -4200735944844450465L
++  }
+ 
+   override fun toBundle() = bundleWithChannelId(
+     "type" to "date",
+     "repeats" to false,
+-    "value" to timestamp
++    "value" to timestamp,
++    "delivery" to delivery
+   )
+ 
+   override fun nextTriggerDate(): Date? {
+@@ -77,12 +112,20 @@ class DateTrigger(override val channelId: String?, val timestamp: Long) : Channe
+  * A schedulable trigger representing a notification to be scheduled once per month.
+  */
+ @Parcelize
+-class MonthlyTrigger(override val channelId: String?, val day: Int, val hour: Int, val minute: Int) : ChannelAwareTrigger(channelId), SchedulableNotificationTrigger {
++class MonthlyTrigger(override val channelId: String?, val day: Int, val hour: Int, val minute: Int, override val alarmClock: Boolean = false) : ChannelAwareTrigger(channelId), SchedulableNotificationTrigger, AlarmClockAwareTrigger {
++
++  companion object {
++    // Pinned to the value computed for the pre-alarmClock class shape so records serialized
++    // by older versions of the library keep loading (they deserialize with alarmClock = false).
++    private const val serialVersionUID: Long = 4383170003413342728L
++  }
++
+   override fun toBundle() = bundleWithChannelId(
+     "type" to "monthly",
+     "day" to day,
+     "hour" to hour,
+-    "minute" to minute
++    "minute" to minute,
++    "delivery" to delivery
+   )
+ 
+   override fun nextTriggerDate(): Date? {
+@@ -145,12 +188,20 @@ class TimeIntervalTrigger(
+  * A schedulable trigger representing a notification to be scheduled once per week.
+  */
+ @Parcelize
+-class WeeklyTrigger(override val channelId: String?, val weekday: Int, val hour: Int, val minute: Int) : ChannelAwareTrigger(channelId), SchedulableNotificationTrigger {
++class WeeklyTrigger(override val channelId: String?, val weekday: Int, val hour: Int, val minute: Int, override val alarmClock: Boolean = false) : ChannelAwareTrigger(channelId), SchedulableNotificationTrigger, AlarmClockAwareTrigger {
++
++  companion object {
++    // Pinned to the value computed for the pre-alarmClock class shape so records serialized
++    // by older versions of the library keep loading (they deserialize with alarmClock = false).
++    private const val serialVersionUID: Long = 924870175512348775L
++  }
++
+   override fun toBundle() = bundleWithChannelId(
+     "type" to "weekly",
+     "weekday" to weekday,
+     "hour" to hour,
+-    "minute" to minute
++    "minute" to minute,
++    "delivery" to delivery
+   )
+ 
+   override fun nextTriggerDate(): Date? {
+@@ -172,13 +223,21 @@ class WeeklyTrigger(override val channelId: String?, val weekday: Int, val hour:
+  * A schedulable trigger representing a notification to be scheduled once per year.
+  */
+ @Parcelize
+-class YearlyTrigger(override val channelId: String?, val day: Int, val month: Int, val hour: Int, val minute: Int) : ChannelAwareTrigger(channelId), SchedulableNotificationTrigger {
++class YearlyTrigger(override val channelId: String?, val day: Int, val month: Int, val hour: Int, val minute: Int, override val alarmClock: Boolean = false) : ChannelAwareTrigger(channelId), SchedulableNotificationTrigger, AlarmClockAwareTrigger {
++
++  companion object {
++    // Pinned to the value computed for the pre-alarmClock class shape so records serialized
++    // by older versions of the library keep loading (they deserialize with alarmClock = false).
++    private const val serialVersionUID: Long = -7918055586087594971L
++  }
++
+   override fun toBundle() = bundleWithChannelId(
+     "type" to "yearly",
+     "day" to day,
+     "month" to month,
+     "hour" to hour,
+-    "minute" to minute
++    "minute" to minute,
++    "delivery" to delivery
+   )
+ 
+   override fun nextTriggerDate(): Date? {
+diff --git a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/service/delegates/ExpoSchedulingDelegate.kt b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/service/delegates/ExpoSchedulingDelegate.kt
+index eddd142..7ba055c 100644
+--- a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/service/delegates/ExpoSchedulingDelegate.kt
++++ b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/service/delegates/ExpoSchedulingDelegate.kt
+@@ -9,6 +9,7 @@ import androidx.core.app.AlarmManagerCompat
+ import expo.modules.notifications.notifications.interfaces.SchedulableNotificationTrigger
+ import expo.modules.notifications.notifications.model.Notification
+ import expo.modules.notifications.notifications.model.NotificationRequest
++import expo.modules.notifications.notifications.triggers.AlarmClockAwareTrigger
+ import expo.modules.notifications.notifications.triggers.ChannelAwareTrigger
+ import expo.modules.notifications.service.NotificationsService
+ import expo.modules.notifications.service.interfaces.SchedulingDelegate
+@@ -64,7 +65,11 @@ class ExpoSchedulingDelegate(protected val context: Context) : SchedulingDelegat
+         NotificationsService.removeScheduledNotification(context, request.identifier)
+       } else {
+         store.saveNotificationRequest(request)
+-        setupAlarm(nextTriggerDate.time, NotificationsService.createNotificationTrigger(context, request.identifier))
++        setupAlarm(
++          nextTriggerDate.time,
++          NotificationsService.createNotificationTrigger(context, request.identifier),
++          (request.trigger as? AlarmClockAwareTrigger)?.alarmClock == true
++        )
+       }
+     }
+   }
+@@ -102,16 +107,22 @@ class ExpoSchedulingDelegate(protected val context: Context) : SchedulingDelegat
+     }
+   }
+ 
+-  private fun setupAlarm(triggerAtMillis: Long, operation: PendingIntent) {
+-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()) {
+-      AlarmManagerCompat.setExactAndAllowWhileIdle(
++  private fun setupAlarm(triggerAtMillis: Long, operation: PendingIntent, alarmClock: Boolean) {
++    val canScheduleExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
++    when {
++      !canScheduleExact -> AlarmManagerCompat.setAndAllowWhileIdle(
+         alarmManager,
+         AlarmManager.RTC_WAKEUP,
+         triggerAtMillis,
+         operation
+       )
+-    } else {
+-      AlarmManagerCompat.setAndAllowWhileIdle(
++      // setAlarmClock() alarms are never adjusted by the system. OEM battery policies defer
++      // setExactAndAllowWhileIdle() alarms by minutes on some devices but leave these alone.
++      alarmClock -> alarmManager.setAlarmClock(
++        AlarmManager.AlarmClockInfo(triggerAtMillis, launchAppIntent()),
++        operation
++      )
++      else -> AlarmManagerCompat.setExactAndAllowWhileIdle(
+         alarmManager,
+         AlarmManager.RTC_WAKEUP,
+         triggerAtMillis,
+@@ -119,4 +130,14 @@ class ExpoSchedulingDelegate(protected val context: Context) : SchedulingDelegat
+       )
+     }
+   }
++
++  private fun launchAppIntent(): PendingIntent? {
++    val intent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
++    return PendingIntent.getActivity(
++      context,
++      0,
++      intent,
++      PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
++    )
++  }
+ }
+diff --git a/node_modules/expo-notifications/build/NotificationScheduler.types.d.ts b/node_modules/expo-notifications/build/NotificationScheduler.types.d.ts
+index 2e04ed8..a114490 100644
+--- a/node_modules/expo-notifications/build/NotificationScheduler.types.d.ts
++++ b/node_modules/expo-notifications/build/NotificationScheduler.types.d.ts
+@@ -1,5 +1,5 @@
+ import type { ProxyNativeModule } from 'expo-modules-core';
+-import type { NotificationRequest, NotificationContentInput } from './Notifications.types';
++import type { NotificationRequest, NotificationContentInput, NotificationDelivery } from './Notifications.types';
+ export interface NotificationSchedulerModule extends ProxyNativeModule {
+     getAllScheduledNotificationsAsync?: () => Promise<NotificationRequest[]>;
+     scheduleNotificationAsync?: (identifier: string, notificationContent: NotificationContentInput, trigger: NativeNotificationTriggerInput) => Promise<string>;
+@@ -35,12 +35,14 @@ export interface NativeTimeIntervalTriggerInput {
+ }
+ export interface NativeDailyTriggerInput {
+     type: 'daily';
++    delivery?: NotificationDelivery;
+     channelId?: string;
+     hour: number;
+     minute: number;
+ }
+ export interface NativeWeeklyTriggerInput {
+     type: 'weekly';
++    delivery?: NotificationDelivery;
+     channelId?: string;
+     weekday: number;
+     hour: number;
+@@ -48,6 +50,7 @@ export interface NativeWeeklyTriggerInput {
+ }
+ export interface NativeYearlyTriggerInput {
+     type: 'yearly';
++    delivery?: NotificationDelivery;
+     channelId?: string;
+     day: number;
+     month: number;
+@@ -56,6 +59,7 @@ export interface NativeYearlyTriggerInput {
+ }
+ export interface NativeMonthlyTriggerInput {
+     type: 'monthly';
++    delivery?: NotificationDelivery;
+     channelId?: string;
+     day: number;
+     hour: number;
+@@ -63,6 +67,7 @@ export interface NativeMonthlyTriggerInput {
+ }
+ export interface NativeDateTriggerInput {
+     type: 'date';
++    delivery?: NotificationDelivery;
+     channelId?: string;
+     timestamp: number;
+ }
+diff --git a/node_modules/expo-notifications/build/Notifications.types.d.ts b/node_modules/expo-notifications/build/Notifications.types.d.ts
+index 618873d..85d2dc5 100644
+--- a/node_modules/expo-notifications/build/Notifications.types.d.ts
++++ b/node_modules/expo-notifications/build/Notifications.types.d.ts
+@@ -129,6 +129,21 @@ export interface TimeIntervalNotificationTrigger {
+     repeats: boolean;
+     seconds: number;
+ }
++/**
++ * Controls which `AlarmManager` API schedules a wall-clock trigger on Android.
++ *
++ * - `'bestEffort'`: the default. Uses `setExactAndAllowWhileIdle()`, which delivers at the requested time
++ *   on most devices. Some OEM Android builds defer these alarms by minutes to save battery.
++ *   Without the exact alarm permission, the system may deliver the notification later than requested.
++ * - `'alarmClock'`: uses `setAlarmClock()`. The system delivers these alarms at the requested time
++ *   and does not defer them for battery optimization. Use only for time-critical alarms, such as
++ *   alarm clocks or medication reminders. The status bar shows an alarm icon until the notification
++ *   is delivered. Requires the `SCHEDULE_EXACT_ALARM` or `USE_EXACT_ALARM` permission on Android 12
++ *   and higher. Without the permission, the notification is scheduled as `'bestEffort'`.
++ * @platform android
++ */
++export type NotificationDelivery = 'bestEffort' | 'alarmClock';
++
+ /**
+  * A trigger related to a daily notification.
+  * > The same functionality will be achieved on iOS with a `CalendarNotificationTrigger`.
+@@ -138,6 +153,7 @@ export interface DailyNotificationTrigger {
+     type: 'daily';
+     hour: number;
+     minute: number;
++    delivery?: NotificationDelivery;
+ }
+ /**
+  * A trigger related to a weekly notification.
+@@ -149,6 +165,7 @@ export interface WeeklyNotificationTrigger {
+     weekday: number;
+     hour: number;
+     minute: number;
++    delivery?: NotificationDelivery;
+ }
+ /**
+  * A trigger related to a monthly notification.
+@@ -160,6 +177,7 @@ export interface MonthlyNotificationTrigger {
+     day: number;
+     hour: number;
+     minute: number;
++    delivery?: NotificationDelivery;
+ }
+ /**
+  * A trigger related to a yearly notification.
+@@ -172,6 +190,7 @@ export interface YearlyNotificationTrigger {
+     month: number;
+     hour: number;
+     minute: number;
++    delivery?: NotificationDelivery;
+ }
+ /**
+  * A Firebase `RemoteMessage` that caused the notification to be delivered to the app.
+@@ -280,6 +299,10 @@ export type DailyTriggerInput = {
+     channelId?: string;
+     hour: number;
+     minute: number;
++    /**
++     * @default 'bestEffort'
++     */
++    delivery?: NotificationDelivery;
+ };
+ /**
+  * This trigger input will cause the notification to be delivered once every week
+@@ -292,6 +315,10 @@ export type WeeklyTriggerInput = {
+     weekday: number;
+     hour: number;
+     minute: number;
++    /**
++     * @default 'bestEffort'
++     */
++    delivery?: NotificationDelivery;
+ };
+ /**
+  * This trigger input will cause the notification to be delivered once per month
+@@ -304,6 +331,10 @@ export type MonthlyTriggerInput = {
+     day: number;
+     hour: number;
+     minute: number;
++    /**
++     * @default 'bestEffort'
++     */
++    delivery?: NotificationDelivery;
+ };
+ /**
+  * This trigger input will cause the notification to be delivered once every year
+@@ -317,6 +348,10 @@ export type YearlyTriggerInput = {
+     month: number;
+     hour: number;
+     minute: number;
++    /**
++     * @default 'bestEffort'
++     */
++    delivery?: NotificationDelivery;
+ };
+ /**
+  * This trigger input will cause the notification to be delivered once
+@@ -327,6 +362,10 @@ export type DateTriggerInput = {
+     type: SchedulableTriggerInputTypes.DATE;
+     date: Date | number;
+     channelId?: string;
++    /**
++     * @default 'bestEffort'
++     */
++    delivery?: NotificationDelivery;
+ };
+ /**
+  * This trigger input will cause the notification to be delivered once or many times
+diff --git a/node_modules/expo-notifications/build/scheduleNotificationAsync.js b/node_modules/expo-notifications/build/scheduleNotificationAsync.js
+index 8f04e4d..7b188b6 100644
+--- a/node_modules/expo-notifications/build/scheduleNotificationAsync.js
++++ b/node_modules/expo-notifications/build/scheduleNotificationAsync.js
+@@ -147,6 +147,9 @@ function parseDateTrigger(trigger) {
+         if (trigger.channelId) {
+             result.channelId = trigger.channelId;
+         }
++        if (trigger.delivery) {
++            result.delivery = trigger.delivery;
++        }
+         return result;
+     }
+     else {
+@@ -173,6 +176,9 @@ function parseDailyTrigger(trigger) {
+         if (trigger.channelId) {
+             result.channelId = trigger.channelId;
+         }
++        if (trigger.delivery) {
++            result.delivery = trigger.delivery;
++        }
+         return result;
+     }
+     return undefined;
+@@ -192,6 +198,9 @@ function parseWeeklyTrigger(trigger) {
+         if (trigger.channelId) {
+             result.channelId = trigger.channelId;
+         }
++        if (trigger.delivery) {
++            result.delivery = trigger.delivery;
++        }
+         return result;
+     }
+     return undefined;
+@@ -211,6 +220,9 @@ function parseMonthlyTrigger(trigger) {
+         if (trigger.channelId) {
+             result.channelId = trigger.channelId;
+         }
++        if (trigger.delivery) {
++            result.delivery = trigger.delivery;
++        }
+         return result;
+     }
+     return undefined;
+@@ -231,6 +243,9 @@ function parseYearlyTrigger(trigger) {
+         if (trigger.channelId) {
+             result.channelId = trigger.channelId;
+         }
++        if (trigger.delivery) {
++            result.delivery = trigger.delivery;
++        }
+         return result;
+     }
+     return undefined;
+diff --git a/node_modules/expo-notifications/src/NotificationScheduler.types.ts b/node_modules/expo-notifications/src/NotificationScheduler.types.ts
+index 021e8fc..1a69226 100644
+--- a/node_modules/expo-notifications/src/NotificationScheduler.types.ts
++++ b/node_modules/expo-notifications/src/NotificationScheduler.types.ts
+@@ -1,6 +1,10 @@
+ import type { ProxyNativeModule } from 'expo-modules-core';
+ 
+-import type { NotificationRequest, NotificationContentInput } from './Notifications.types';
++import type {
++  NotificationRequest,
++  NotificationContentInput,
++  NotificationDelivery,
++} from './Notifications.types';
+ 
+ export interface NotificationSchedulerModule extends ProxyNativeModule {
+   getAllScheduledNotificationsAsync?: () => Promise<NotificationRequest[]>;
+@@ -46,6 +50,7 @@ export interface NativeTimeIntervalTriggerInput {
+ 
+ export interface NativeDailyTriggerInput {
+   type: 'daily';
++  delivery?: NotificationDelivery;
+   channelId?: string;
+   hour: number;
+   minute: number;
+@@ -53,6 +58,7 @@ export interface NativeDailyTriggerInput {
+ 
+ export interface NativeWeeklyTriggerInput {
+   type: 'weekly';
++  delivery?: NotificationDelivery;
+   channelId?: string;
+   weekday: number;
+   hour: number;
+@@ -61,6 +67,7 @@ export interface NativeWeeklyTriggerInput {
+ 
+ export interface NativeYearlyTriggerInput {
+   type: 'yearly';
++  delivery?: NotificationDelivery;
+   channelId?: string;
+   day: number;
+   month: number;
+@@ -70,6 +77,7 @@ export interface NativeYearlyTriggerInput {
+ 
+ export interface NativeMonthlyTriggerInput {
+   type: 'monthly';
++  delivery?: NotificationDelivery;
+   channelId?: string;
+   day: number;
+   hour: number;
+@@ -78,6 +86,7 @@ export interface NativeMonthlyTriggerInput {
+ 
+ export interface NativeDateTriggerInput {
+   type: 'date';
++  delivery?: NotificationDelivery;
+   channelId?: string;
+   timestamp: number; // seconds since 1970
+ }
+diff --git a/node_modules/expo-notifications/src/Notifications.types.ts b/node_modules/expo-notifications/src/Notifications.types.ts
+index ba637ce..83e7da7 100644
+--- a/node_modules/expo-notifications/src/Notifications.types.ts
++++ b/node_modules/expo-notifications/src/Notifications.types.ts
+@@ -137,6 +137,21 @@ export interface TimeIntervalNotificationTrigger {
+   seconds: number;
+ }
+ 
++/**
++ * Controls which `AlarmManager` API schedules a wall-clock trigger on Android.
++ *
++ * - `'bestEffort'`: the default. Uses `setExactAndAllowWhileIdle()`, which delivers at the requested time
++ *   on most devices. Some OEM Android builds defer these alarms by minutes to save battery.
++ *   Without the exact alarm permission, the system may deliver the notification later than requested.
++ * - `'alarmClock'`: uses `setAlarmClock()`. The system delivers these alarms at the requested time
++ *   and does not defer them for battery optimization. Use only for time-critical alarms, such as
++ *   alarm clocks or medication reminders. The status bar shows an alarm icon until the notification
++ *   is delivered. Requires the `SCHEDULE_EXACT_ALARM` or `USE_EXACT_ALARM` permission on Android 12
++ *   and higher. Without the permission, the notification is scheduled as `'bestEffort'`.
++ * @platform android
++ */
++export type NotificationDelivery = 'bestEffort' | 'alarmClock';
++
+ /**
+  * A trigger related to a daily notification.
+  * > The same functionality will be achieved on iOS with a `CalendarNotificationTrigger`.
+@@ -146,6 +161,7 @@ export interface DailyNotificationTrigger {
+   type: 'daily';
+   hour: number;
+   minute: number;
++  delivery?: NotificationDelivery;
+ }
+ 
+ /**
+@@ -158,6 +174,7 @@ export interface WeeklyNotificationTrigger {
+   weekday: number;
+   hour: number;
+   minute: number;
++  delivery?: NotificationDelivery;
+ }
+ 
+ /**
+@@ -170,6 +187,7 @@ export interface MonthlyNotificationTrigger {
+   day: number;
+   hour: number;
+   minute: number;
++  delivery?: NotificationDelivery;
+ }
+ 
+ /**
+@@ -183,6 +201,7 @@ export interface YearlyNotificationTrigger {
+   month: number;
+   hour: number;
+   minute: number;
++  delivery?: NotificationDelivery;
+ }
+ 
+ // @docsMissing
+@@ -305,6 +324,10 @@ export type DailyTriggerInput = {
+   channelId?: string;
+   hour: number;
+   minute: number;
++  /**
++   * @default 'bestEffort'
++   */
++  delivery?: NotificationDelivery;
+ };
+ 
+ /**
+@@ -318,6 +341,10 @@ export type WeeklyTriggerInput = {
+   weekday: number;
+   hour: number;
+   minute: number;
++  /**
++   * @default 'bestEffort'
++   */
++  delivery?: NotificationDelivery;
+ };
+ 
+ /**
+@@ -331,6 +358,10 @@ export type MonthlyTriggerInput = {
+   day: number;
+   hour: number;
+   minute: number;
++  /**
++   * @default 'bestEffort'
++   */
++  delivery?: NotificationDelivery;
+ };
+ 
+ /**
+@@ -345,6 +376,10 @@ export type YearlyTriggerInput = {
+   month: number;
+   hour: number;
+   minute: number;
++  /**
++   * @default 'bestEffort'
++   */
++  delivery?: NotificationDelivery;
+ };
+ 
+ /**
+@@ -356,6 +391,10 @@ export type DateTriggerInput = {
+   type: SchedulableTriggerInputTypes.DATE;
+   date: Date | number;
+   channelId?: string;
++  /**
++   * @default 'bestEffort'
++   */
++  delivery?: NotificationDelivery;
+ };
+ 
+ /**
+diff --git a/node_modules/expo-notifications/src/__tests__/parseTrigger-test.ts b/node_modules/expo-notifications/src/__tests__/parseTrigger-test.ts
+new file mode 100644
+index 0000000..57bb598
+--- /dev/null
++++ b/node_modules/expo-notifications/src/__tests__/parseTrigger-test.ts
+@@ -0,0 +1,70 @@
++import {
++  type SchedulableNotificationTriggerInput,
++  SchedulableTriggerInputTypes,
++} from '../Notifications.types';
++import { parseTrigger } from '../scheduleNotificationAsync';
++
++type WallClockTriggerInput = Exclude<
++  SchedulableNotificationTriggerInput,
++  {
++    type: SchedulableTriggerInputTypes.CALENDAR | SchedulableTriggerInputTypes.TIME_INTERVAL;
++  }
++>;
++
++const WALL_CLOCK_TRIGGERS: [string, WallClockTriggerInput][] = [
++  ['date', { type: SchedulableTriggerInputTypes.DATE, date: 1_728_000_000_000 }],
++  ['daily', { type: SchedulableTriggerInputTypes.DAILY, hour: 9, minute: 15 }],
++  [
++    'weekly',
++    {
++      type: SchedulableTriggerInputTypes.WEEKLY,
++      weekday: 4,
++      hour: 9,
++      minute: 15,
++    },
++  ],
++  [
++    'monthly',
++    {
++      type: SchedulableTriggerInputTypes.MONTHLY,
++      day: 15,
++      hour: 9,
++      minute: 15,
++    },
++  ],
++  [
++    'yearly',
++    {
++      type: SchedulableTriggerInputTypes.YEARLY,
++      day: 15,
++      month: 4,
++      hour: 9,
++      minute: 15,
++    },
++  ],
++];
++
++describe(parseTrigger, () => {
++  it.each(WALL_CLOCK_TRIGGERS)('forwards delivery for a %s trigger', (kind, trigger) => {
++    expect(parseTrigger({ ...trigger, delivery: 'alarmClock' })).toMatchObject({
++      type: kind,
++      delivery: 'alarmClock',
++    });
++  });
++
++  it.each(WALL_CLOCK_TRIGGERS)(
++    'omits delivery for a %s trigger when it is not set',
++    (_kind, trigger) => {
++      expect(parseTrigger(trigger)).not.toHaveProperty('delivery');
++    }
++  );
++
++  it('does not add delivery to a timeInterval trigger', () => {
++    const result = parseTrigger({
++      type: SchedulableTriggerInputTypes.TIME_INTERVAL,
++      seconds: 60,
++      repeats: false,
++    });
++    expect(result).not.toHaveProperty('delivery');
++  });
++});
+diff --git a/node_modules/expo-notifications/src/scheduleNotificationAsync.ts b/node_modules/expo-notifications/src/scheduleNotificationAsync.ts
+index 712d6f9..751a656 100644
+--- a/node_modules/expo-notifications/src/scheduleNotificationAsync.ts
++++ b/node_modules/expo-notifications/src/scheduleNotificationAsync.ts
+@@ -188,6 +188,9 @@ function parseDateTrigger(trigger: NotificationTriggerInput): NativeDateTriggerI
+     if (trigger.channelId) {
+       result.channelId = trigger.channelId;
+     }
++    if (trigger.delivery) {
++      result.delivery = trigger.delivery;
++    }
+     return result;
+   } else {
+     return undefined;
+@@ -217,6 +220,9 @@ function parseDailyTrigger(trigger: NotificationTriggerInput): NativeDailyTrigge
+     if (trigger.channelId) {
+       result.channelId = trigger.channelId;
+     }
++    if (trigger.delivery) {
++      result.delivery = trigger.delivery;
++    }
+     return result;
+   }
+   return undefined;
+@@ -241,6 +247,9 @@ function parseWeeklyTrigger(
+     if (trigger.channelId) {
+       result.channelId = trigger.channelId;
+     }
++    if (trigger.delivery) {
++      result.delivery = trigger.delivery;
++    }
+     return result;
+   }
+   return undefined;
+@@ -265,6 +274,9 @@ function parseMonthlyTrigger(
+     if (trigger.channelId) {
+       result.channelId = trigger.channelId;
+     }
++    if (trigger.delivery) {
++      result.delivery = trigger.delivery;
++    }
+     return result;
+   }
+   return undefined;
+@@ -290,6 +302,9 @@ function parseYearlyTrigger(
+     if (trigger.channelId) {
+       result.channelId = trigger.channelId;
+     }
++    if (trigger.delivery) {
++      result.delivery = trigger.delivery;
++    }
+     return result;
+   }
+   return undefined;

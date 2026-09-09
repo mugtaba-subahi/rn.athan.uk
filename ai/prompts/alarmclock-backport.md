@@ -106,18 +106,68 @@ frozen at cut time and never rebased.
   sideloads on ColorOS 16 (`settings put global package_verifier_enable 0` +
   `verifier_verify_adb_installs 0`, restore after).
 
+## Session record (2026-09-09)
+
+Branch cut and built at 1.24.0. Everything below rides the branch commit and is
+the authoritative description of what the patch contains and why.
+
+**Patch inventory** (`patches/expo-notifications+57.0.17.patch`, 10 files):
+the 7 upstream files from merge commit `257006e` (NotificationScheduler.kt,
+NotificationTriggers.kt, ExpoSchedulingDelegate.kt, NotificationScheduler.types.ts,
+Notifications.types.ts, scheduleNotificationAsync.ts, parseTrigger-test.ts) PLUS 3
+compiled-output mirrors (`build/Notifications.types.d.ts`,
+`build/NotificationScheduler.types.d.ts`, `build/scheduleNotificationAsync.js`).
+All hunks applied cleanly onto 57.0.17; no drift reconciliation was needed.
+
+**The build-mirror requirement (durable lesson for any expo-package backport):**
+published expo packages resolve `main`/`types` through `build/`, not `src/`. A
+patch that touches only `src/` compiles, ships, and silently does nothing at
+runtime; the only tripwire is `tsc` rejecting the new field in app code (which is
+exactly how it surfaced here — failing closed). Any future patch-package backport
+of a JS/TS file must mirror the same change into the compiled `build/` outputs
+and regenerate the patch. Kotlin is unaffected (compiled from source by gradle).
+
+**Verification ladder (all green before submission):**
+install (`npx patch-package` recreates cleanly), typecheck (`yarn validate`:
+tsc + biome + 968 tests), JS runtime (node executed the patched
+`build/scheduleNotificationAsync.js` `parseTrigger` directly: `delivery:
+'alarmClock'` forwards to the native trigger object on date triggers, is omitted
+when unset, and is correctly excluded from timeInterval triggers), compilation
+and device stages pending the EAS builds.
+
+**Runtime patch flow on the EAS build server:** `yarn install` runs the
+`postinstall: patch-package` hook, the patch applies onto the fresh
+node_modules, and the patched Kotlin compiles into the Release APK. Native code
+means a real build, never OTA.
+
+**Editor note:** after the patch applies, IDE TypeScript servers hold a stale
+pre-patch snapshot (node_modules is excluded from file watching). "Restart TS
+Server" clears the phantom `delivery` error; `tsc --noEmit` from the CLI is the
+truth.
+
 ## TRACKER — update at every session end
 
 | Step | Status |
 | --- | --- |
-| B1 Branch created from uat | not started |
-| B2 Diff extracted + drift reconciled onto installed 57.x | not started |
-| B3 patch-package patch generated + postinstall wired | not started |
-| B4 `delivery: 'alarmClock'` adopted in `stores/notifications.ts` | not started |
-| B4b What's New re-stamped to 1.24.0 (same three items, parked widgets item untouched) | not started |
-| B5 eas.json preview profile wired to the `preview` EAS environment (real key, non-local env; branch-only) | not started |
-| B6 validate green, committed, pushed | not started |
-| B7 EAS APK + parity IPA built at 1.24.0; owner installs BOTH personally via the EAS link (APK on 3T/5T/8T/Find X8, IPA on the XS; devices already clean); dumpsys `window=0` confirmed on the connected 3T | not started |
+| B1 Branch created from uat | DONE 2026-09-09 (experiment/alarmclock-backport, frozen at 1.23.12 cut) |
+| B2 Diff extracted + drift reconciled onto installed 57.x | DONE 2026-09-09 (clean apply; +3 build/ mirrors, see session record) |
+| B3 patch-package patch generated + postinstall wired | DONE 2026-09-09 (10-file patch, devDep + hook in package.json) |
+| B4 `delivery: 'alarmClock'` adopted in `device/notifications.ts` (both DATE triggers) | DONE 2026-09-09 |
+| B4b What's New re-stamped to 1.24.0 (same three items, parked widgets item untouched) | DONE 2026-09-09 |
+| B5 eas.json preview profile wired to the `preview` EAS environment (real key, non-local env; branch-only) | DONE 2026-09-09 (`EXPO_PUBLIC_ENV=preview` already set server-side, no profile pin needed) |
+| B6 validate green, committed, pushed | DONE 2026-09-09 (968 tests green; 1.24.0) |
+| B7 EAS APK + parity IPA built at 1.24.0; owner installs BOTH personally via the EAS link (APK on 3T/5T/8T/Find X8, IPA on the XS; devices already clean); dumpsys `window=0` confirmed on the connected 3T | IN PROGRESS (Android submitted first, then iOS; XS UDID verified registered) |
 | B8 Daily-use verdict (delivery punctuality on OEM phones) | pending owner use |
-| B9 Real release carries #49687; branch + patch deleted; usage diff ported | waiting on SDK 58 |
+| B9 Real release carries #49687; branch + patch deleted; usage diff ported | waiting on SDK 58 (as of 2026-09-09 the 57.x line tops out at 57.0.17 with no alarmClock entry) |
 | B10 ISSUES #22 addendum | SKIPPED per owner 2026-09-09 (fixed 1.22.19; rides daily use if ever revisited) |
+
+## Deletion-day checklist (SDK 58, or any 57.x release carrying #49687)
+
+1. Confirm the release notes/CHANGELOG actually carry #49687.
+2. Delete `patches/expo-notifications+57.0.17.patch`.
+3. Remove `"postinstall": "patch-package"` from package.json scripts; `yarn remove patch-package`.
+4. Delete the `experiment/alarmclock-backport` branch (never merged, never rebased).
+5. Port the usage diff verbatim: `delivery: 'alarmClock'` on the two DATE triggers in `device/notifications.ts`.
+6. Re-stamp What's New for the real store release.
+7. Verify once on the 3T with `adb shell dumpsys alarm | grep -A2 mugtaba` (`window=0`).
+8. Verify the Play install replaces the side-loaded APK once (uninstall-first if keystrokes differ).
