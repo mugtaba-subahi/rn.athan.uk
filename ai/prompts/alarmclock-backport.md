@@ -127,6 +127,24 @@ exactly how it surfaced here — failing closed). Any future patch-package backp
 of a JS/TS file must mirror the same change into the compiled `build/` outputs
 and regenerate the patch. Kotlin is unaffected (compiled from source by gradle).
 
+**The prebuilt-AAR requirement (durable lesson, 2026-09-09, the 1.24.0 miss):**
+SDK 57 ships expo modules' Android native code as PRECOMPILED AARs inside each
+npm package (`local-maven-repo/.../<pkg>.aar`); the gradle autolinking plugin
+links the AAR and never compiles `android/src`. The 1.24.0 builds applied the
+patch faithfully but compiled the UNPATCHED binary — verified by pulling the EAS
+artifact and grepping the dex (control string present, patch markers absent) and
+by dumpsys on the 8T/Find X8 (`window=+1h0m0s0ms`, the old windowed class; a
+neighboring app's alarms showed `window=0` proving exact delivery possible).
+THE FIX: `package.json` → `expo.autolinking.android.buildFromSource:
+["expo-notifications"]` makes the settings plugin link the patched source
+instead of the publication (`SettingsManager.configurePublication`:
+`shouldUsePublication = !forceBuildFromSource && ...`). The 1.24.1 rebuild adds
+this. Any future expo-module backport must set it for every patched package.
+Verification ritual before install: pull the artifact, `grep -a "Unsupported
+trigger delivery" classes*.dex` — marker present means the patch truly compiled
+in. (Upstream precedent: the expo/expo#49244 verification harness used exactly
+patch + build-from-source together.)
+
 **Verification ladder (all green before submission):**
 install (`npx patch-package` recreates cleanly), typecheck (`yarn validate`:
 tsc + biome + 968 tests), JS runtime (node executed the patched
@@ -156,7 +174,7 @@ truth.
 | B4b What's New re-stamped to 1.24.0 (same three items, parked widgets item untouched) | DONE 2026-09-09 |
 | B5 eas.json preview profile wired to the `preview` EAS environment (real key, non-local env; branch-only) | DONE 2026-09-09 (`EXPO_PUBLIC_ENV=preview` already set server-side, no profile pin needed) |
 | B6 validate green, committed, pushed | DONE 2026-09-09 (968 tests green; 1.24.0) |
-| B7 EAS APK + parity IPA built at 1.24.0; owner installs BOTH personally via the EAS link (APK on 3T/5T/8T/Find X8, IPA on the XS; devices already clean); dumpsys `window=0` confirmed on the connected 3T | IN PROGRESS (Android submitted first, then iOS; XS UDID verified registered) |
+| B7 EAS APK + parity IPA built at 1.24.0; owner installs BOTH personally via the EAS link (APK on 3T/5T/8T/Find X8, IPA on the XS; devices already clean); dumpsys `window=0` confirmed on the connected 3T | 1.24.0 built FINISHED but carried the UNPATCHED AAR (prebuilt-AAR miss, see session record; alarms registered windowed +1h, owner-observed missed/mistimed reminders). 1.24.1 rebuild with `buildFromSource` submitted; artifact dex-marker verification BEFORE owner installs |
 | B8 Daily-use verdict (delivery punctuality on OEM phones) | pending owner use |
 | B9 Real release carries #49687; branch + patch deleted; usage diff ported | waiting on SDK 58 (as of 2026-09-09 the 57.x line tops out at 57.0.17 with no alarmClock entry) |
 | B10 ISSUES #22 addendum | SKIPPED per owner 2026-09-09 (fixed 1.22.19; rides daily use if ever revisited) |

@@ -1,9 +1,18 @@
 {
   "name": "athan",
-  "version": "1.24.0",
+  "version": "1.24.1",
   "type": "commonjs",
   "private": true,
   "main": "expo-router/entry",
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-notifications"
+        ]
+      }
+    }
+  },
   "scripts": {
     "start": "expo start -c",
     "postinstall": "patch-package",
