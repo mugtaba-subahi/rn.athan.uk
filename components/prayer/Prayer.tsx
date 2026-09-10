@@ -1,13 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import { useAtomValue } from 'jotai';
 import { useEffect, useMemo } from 'react';
-import { Platform, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 
 import { useAnimationColor, useAnimationOpacity } from '@/hooks/useAnimation';
 import { usePrayer } from '@/hooks/usePrayer';
 import { useSchedule } from '@/hooks/useSchedule';
-import { ANIMATION, COLORS, RADIUS, SHADOW_ANDROID, STYLES, TEXT } from '@/shared/constants';
+import { ANIMATION, COLORS, STYLES, TEXT } from '@/shared/constants';
 import { getCascadeDelay } from '@/shared/prayer';
 import type { ScheduleType } from '@/shared/types';
 import { getOverlayHiddenAtom, getOverlaySelectedAtom } from '@/stores/atoms/overlay';
@@ -67,9 +67,10 @@ export default function Prayer({ type, index }: Props) {
   };
 
   // Force animation to respect new state immediately when refreshing
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshUI is a deliberate re-fire signal; initialColorPos is read from the fresh render closure at signal time
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshUI is a deliberate re-fire signal; initialColorPos and isSelectedForOverlay are read from the fresh render closure at signal time
   useEffect(() => {
-    AnimColor.animate(Prayer.ui.initialColorPos);
+    const colorPos = isSelectedForOverlay ? 1 : Prayer.ui.initialColorPos;
+    AnimColor.animate(colorPos);
   }, [refreshUI]);
 
   // Animate when next prayer changes
@@ -100,21 +101,15 @@ export default function Prayer({ type, index }: Props) {
     AnimOpacity.animate(isHiddenByOverlay ? 0 : 1, { duration: ANIMATION.duration });
   }, [isHiddenByOverlay, AnimOpacity.animate]);
 
-  // Android depth shadow for the active row: lives on the row (the
-  // pill's slide transform clips Android's boxShadow drawable on old Android)
-  // and borderRadius mirrors the pill's corners so the shadow is rounded.
-  // API >= 29 only — borderRadius + boxShadow together are dropped outright on
-  // API 28 (verified: no shadow, hard edges; renders correctly from 29 up)
-  const activeShadowStyle: ViewStyle | null =
-    Platform.OS === 'android' && Platform.Version >= 29 && Prayer.isNext
-      ? {
-          borderRadius: RADIUS.md,
-          boxShadow: Schedule.isStandard ? SHADOW_ANDROID.prayer : SHADOW_ANDROID.prayerExtras,
-        }
-      : null;
+  // Re-issue on resume: the boundary tick closes the overlay from outside React,
+  // and a veil write dropped while the host wound down never re-fires on its own
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshUI is a deliberate re-fire signal; isHiddenByOverlay is read from the fresh render closure at signal time
+  useEffect(() => {
+    AnimOpacity.animate(isHiddenByOverlay ? 0 : 1, { duration: ANIMATION.duration });
+  }, [refreshUI]);
 
   return (
-    <AnimatedPressable style={[styles.container, AnimOpacity.style, activeShadowStyle]} onPress={handlePress}>
+    <AnimatedPressable style={[styles.container, AnimOpacity.style]} onPress={handlePress}>
       <Animated.Text style={[styles.text, styles.english, computedStyleEnglish, AnimColor.style]}>
         {Prayer.english}
       </Animated.Text>
